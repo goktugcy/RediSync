@@ -1,6 +1,6 @@
 # RediSync
 
-Smart caching middleware for PHP using Redis and MySQL/PostgreSQL.
+High-performance caching middleware for PHP that stores data in Redis while syncing with MySQL or PostgreSQL.
 
 ![Packagist Version](https://img.shields.io/packagist/v/redisync/core?style=flat-square)
 ![Total Downloads](https://img.shields.io/packagist/dt/redisync/core?style=flat-square)
