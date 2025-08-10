@@ -27,9 +27,10 @@ class KeyGenerator
                 unset($queryParams[$p]);
             }
         }
-        ksort($queryParams);
-        $query = http_build_query($queryParams);
-        $key   = sprintf('%s:%s:%s?%s', $this->prefix, $method, $uri, $query);
+        $queryParams = $this->ksortRecursive($queryParams);
+        $query       = http_build_query($queryParams, '', '&', PHP_QUERY_RFC3986);
+        $base        = sprintf('%s:%s:%s', $this->prefix, $method, $uri);
+        $key         = $query === '' ? $base : ($base . '?' . $query);
         return md5($key);
     }
 
@@ -40,9 +41,27 @@ class KeyGenerator
                 unset($params[$p]);
             }
         }
-        ksort($params);
-        $query = http_build_query($params);
-        $key   = sprintf('%s:%s:%s?%s', $this->prefix, strtoupper($method), $path, $query);
+        $params = $this->ksortRecursive($params);
+        $query  = http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+        $base   = sprintf('%s:%s:%s', $this->prefix, strtoupper($method), $path);
+        $key    = $query === '' ? $base : ($base . '?' . $query);
         return md5($key);
+    }
+
+    /**
+     * Recursively ksort an array to ensure deterministic ordering for nested params.
+     *
+     * @param array $arr
+     * @return array
+     */
+    private function ksortRecursive(array $arr): array
+    {
+        foreach ($arr as $k => $v) {
+            if (is_array($v)) {
+                $arr[$k] = $this->ksortRecursive($v);
+            }
+        }
+        ksort($arr);
+        return $arr;
     }
 }
