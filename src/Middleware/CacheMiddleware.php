@@ -22,6 +22,9 @@ class CacheMiddleware implements MiddlewareInterface
         private int $ttl = 300,
         private ?ResponseFactoryInterface $responseFactory = null,
         private ?StreamFactoryInterface $streamFactory = null,
+        private array $statusWhitelist = [200],
+        private array $allowedContentTypes = [],
+        private array $ttlMap = [],
     ) {
         if ($this->responseFactory === null || $this->streamFactory === null) {
             $psr17                 = new Psr17Factory();
@@ -57,12 +60,66 @@ class CacheMiddleware implements MiddlewareInterface
         $body    = (string) $response->getBody();
         $headers = $response->getHeaders();
         $status  = $response->getStatusCode();
+        if (! $this->isCacheableResponse($response)) {
+            return $response;
+        }
+        $ttl = $this->resolveTtl($request->getUri()->getPath());
         $this->cache->set($key, [
             'status'  => $status,
             'headers' => $headers,
             'body'    => $body,
-        ], $this->ttl);
+        ], $ttl);
 
         return $response;
+    }
+
+    private function isCacheableResponse(ResponseInterface $response): bool
+    {
+        // status whitelist
+        if (! in_array($response->getStatusCode(), $this->statusWhitelist, true)) {
+            return false;
+        }
+        // content-type allow list (only if configured)
+        if (! empty($this->allowedContentTypes)) {
+            $ct = $response->getHeaderLine('Content-Type');
+            if ($ct === '') {
+                return false;
+            }
+            $ok = false;
+            foreach ($this->allowedContentTypes as $allowed) {
+                if (stripos($ct, $allowed) === 0) {$ok = true;
+                    break;}
+            }
+            if (! $ok) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private function resolveTtl(string $path): int
+    {
+        foreach ($this->ttlMap as $pattern => $ttl) {
+            if ($this->patternMatch($path, $pattern)) {
+                return (int) $ttl;
+            }
+        }
+        return $this->ttl;
+    }
+
+    private function patternMatch(string $path, string $pattern): bool
+    {
+        // If pattern looks like a regex (#...#), use preg_match
+        $first = substr($pattern, 0, 1);
+        $last  = substr($pattern, -1);
+        if (strlen($pattern) > 2 && $first === $last && ! ctype_alnum($first)) {
+            return (bool) @preg_match($pattern, $path);
+        }
+        // otherwise use glob-like matching
+        if (function_exists('fnmatch')) {
+            return fnmatch($pattern, $path);
+        }
+        // fallback: simple prefix match
+        return str_starts_with($path, rtrim($pattern, '*'));
     }
 }
