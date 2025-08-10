@@ -133,3 +133,23 @@ $this->app->singleton(RediSync\Cache\CacheManager::class, function () {
 - Use status whitelist and Content-Type filters for safe caching.
 - TTL map allows per-path TTL control.
 - Before publishing to Packagist, consider adding CI (PHPUnit, PHPStan, CS-Fixer).
+
+## ❗ Troubleshooting installs (Laravel/Carbon + Doctrine DBAL)
+
+If your app uses Laravel 11 + Carbon 3, you may see a conflict involving `doctrine/dbal` and `carbonphp/carbon-doctrine-types` when installing `redisync/core`.
+
+What changed: RediSync no longer hard-requires `doctrine/dbal`. It's optional and only needed if you plan to use `DatabaseManager`.
+
+- Install RediSync first:
+
+  ```bash
+  composer require redisync/core
+  ```
+
+- If you need DB features, require a DBAL version compatible with your stack. For example:
+
+  ```bash
+  composer require doctrine/dbal:^3.8
+  ```
+
+If Composer still reports conflicts, align DBAL with the versions compatible with your Laravel/Carbon lock (check `composer why doctrine/dbal` and `composer why-not doctrine/dbal:^3.10`).
