@@ -2,6 +2,14 @@
 
 Smart caching middleware for PHP using Redis and MySQL/PostgreSQL.
 
+![Packagist Version](https://img.shields.io/packagist/v/redisync/core?style=flat-square)
+![Total Downloads](https://img.shields.io/packagist/dt/redisync/core?style=flat-square)
+![PHP Version](https://img.shields.io/packagist/php-v/redisync/core?style=flat-square)
+![License](https://img.shields.io/packagist/l/redisync/core?style=flat-square)
+![PSR](https://img.shields.io/badge/PSR--7%2F17-1.x%20%7C%202.x-blue?style=flat-square)
+
+> Zero-friction HTTP caching for PHP apps: PSR-15 middleware, Redis-backed, DB-aware invalidation.
+
 ## ✨ Features
 
 - PSR-15 middleware: automatic HTTP cache hit/miss flow.
@@ -132,7 +140,6 @@ $this->app->singleton(RediSync\Cache\CacheManager::class, function () {
 - Middleware caches only GET requests by default.
 - Use status whitelist and Content-Type filters for safe caching.
 - TTL map allows per-path TTL control.
-- Before publishing to Packagist, consider adding CI (PHPUnit, PHPStan, CS-Fixer).
 
 ## ❗ Troubleshooting installs (Laravel/Carbon + Doctrine DBAL)
 
