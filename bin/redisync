@@ -1,0 +1,63 @@
+#!/usr/bin/env php
+<?php
+    declare (strict_types = 1);
+
+    require __DIR__ . '/../vendor/autoload.php';
+
+    use RediSync\Cache\CacheManager;
+
+    $argv = $_SERVER['argv'] ?? [];
+    $cmd  = $argv[1] ?? 'help';
+
+    $config = require __DIR__ . '/../config/config.php';
+    $cache  = CacheManager::fromConfig($config['redis'] ?? []);
+
+    switch ($cmd) {
+        case 'clear-cache':
+            $pattern = $argv[2] ?? '*';
+            $deleted = $cache->clearByPattern($pattern);
+            echo "Cleared {$deleted} keys matching '{$pattern}'\n";
+            exit(0);
+        case 'list-keys':
+            $pattern = $argv[2] ?? '*';
+            $limit   = isset($argv[3]) ? (int) $argv[3] : 100;
+            $keys    = $cache->listKeys($pattern, $limit);
+            foreach ($keys as $k) {
+                echo $k . "\n";
+            }
+            exit(0);
+        case 'key-info':
+            $key = $argv[2] ?? null;
+            if (! $key) {fwrite(STDERR, "Usage: redisync key-info <key>\n");exit(1);}
+            $info = $cache->keyInfo($key);
+            foreach ($info as $k => $v) {
+                if (is_bool($v)) {$v = $v ? 'true' : 'false';}
+                echo sprintf("%-8s %s\n", $k . ':', (string) $v);
+            }
+            exit(0);
+        case 'warmup':
+            // Simple warmup: accept a list of keys from STDIN and set dummy values with short TTL
+            $ttl   = isset($argv[2]) ? (int) $argv[2] : 60;
+            $stdin = fopen('php://stdin', 'r');
+            $count = 0;
+            while (($line = fgets($stdin)) !== false) {
+                $key = trim($line);
+                if ($key === '') {
+                    continue;
+                }
+
+                $cache->set($key, ['warmup' => true, 'at' => time()], $ttl);
+                $count++;
+            }
+            echo "Warmed up {$count} keys with TTL {$ttl}\n";
+            exit(0);
+        case 'help':
+        default:
+            echo "RediSync CLI\n\n";
+            echo "Usage:\n";
+            echo "  redisync clear-cache [pattern]        Clear cache keys by pattern (default: *)\n";
+            echo "  redisync list-keys [pattern] [limit]  List keys by pattern (default: *, 100)\n";
+            echo "  redisync key-info <key>               Show key info (ttl,type,size,exists)\n";
+            echo "  redisync warmup [ttl]                 Read keys from stdin and set placeholder values\n";
+            exit(0);
+}

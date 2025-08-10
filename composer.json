@@ -1,0 +1,33 @@
+{
+  "name": "redisync/core",
+  "description": "Smart caching middleware for PHP using Redis and MySQL/PostgreSQL",
+  "type": "library",
+  "require": {
+    "php": "^8.1",
+    "predis/predis": "^2.0",
+    "doctrine/dbal": "^3.6",
+    "psr/http-message": "^1.1",
+    "psr/http-server-middleware": "^1.0",
+    "psr/http-server-handler": "^1.0",
+    "psr/http-factory": "^1.0",
+    "nyholm/psr7": "^1.8"
+  },
+  "autoload": {
+    "psr-4": {
+      "RediSync\\": "src/"
+    }
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^10.0",
+    "phpstan/phpstan": "^1.11",
+    "friendsofphp/php-cs-fixer": "^3.64"
+  },
+  "bin": [
+    "bin/redisync"
+  ],
+  "scripts": {
+    "test": "phpunit",
+    "stan": "phpstan analyse -c phpstan.neon.dist",
+    "lint": "php-cs-fixer fix --dry-run --diff"
+  }
+}
