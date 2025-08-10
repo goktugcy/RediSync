@@ -32,6 +32,15 @@ class CacheMiddleware implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
+        // Only cache idempotent GET requests by default
+        if (strtoupper($request->getMethod()) !== 'GET') {
+            return $handler->handle($request);
+        }
+        // Allow bypass with header X-Bypass-Cache: 1
+        if ($request->getHeaderLine('X-Bypass-Cache') === '1') {
+            return $handler->handle($request);
+        }
+
         $key    = $this->keys->fromRequest($request);
         $cached = $this->cache->get($key);
         if ($cached !== null && isset($cached['status'], $cached['headers'], $cached['body'])) {
