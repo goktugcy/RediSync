@@ -2,6 +2,26 @@
   "name": "redisync/core",
   "description": "Smart caching middleware for PHP using Redis and MySQL/PostgreSQL",
   "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "goktugcy"
+    }
+  ],
+  "keywords": [
+    "redis",
+    "cache",
+    "middleware",
+    "psr-7",
+    "psr-15",
+    "doctrine",
+    "dbal"
+  ],
+  "homepage": "https://github.com/goktugcy/RediSync",
+  "support": {
+    "issues": "https://github.com/goktugcy/RediSync/issues",
+    "source": "https://github.com/goktugcy/RediSync"
+  },
   "require": {
     "php": "^8.1",
     "predis/predis": "^2.0",
@@ -11,6 +31,10 @@
     "psr/http-server-handler": "^1.0",
     "psr/http-factory": "^1.0",
     "nyholm/psr7": "^1.8"
+  },
+  "suggest": {
+    "laminas/laminas-diactoros": "Alternative PSR-7/17 implementation",
+    "guzzlehttp/psr7": "Alternative PSR-7 implementation"
   },
   "autoload": {
     "psr-4": {
@@ -29,5 +53,9 @@
     "test": "phpunit",
     "stan": "phpstan analyse -c phpstan.neon.dist",
     "lint": "php-cs-fixer fix --dry-run --diff"
-  }
+  },
+  "config": {
+    "sort-packages": true
+  },
+  "prefer-stable": true
 }
