@@ -147,11 +147,45 @@ Route::middleware('redisync.cache')
   ->get('/api/users/{id}', [UserController::class, 'show']);
 ```
 
+- HTML view caching (example: getProfile):
+
+```php
+use Illuminate\Support\Facades\Auth;
+use RediSync\Bridge\Laravel\Facades\RediSyncCache as Cache;
+
+public function getProfile() {
+  $user = Auth::user();
+  if (! $user) return redirect('404');
+  $key = "users:profile:{$user->id}";
+  if ($html = Cache::get($key)) {
+    return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
+  }
+  $html = view('themes.default1.agent.helpdesk.user.profile', compact('user'))->render();
+  Cache::set($key, $html, 300);
+  return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
+}
+```
+
+- Invalidation via model events:
+
+```php
+// app/Providers/AppServiceProvider.php
+public function boot(\RediSync\Cache\CacheManager $cache): void
+{
+  \App\Models\User::saved(fn () => $cache->clearByPattern('users:*'));
+  \App\Models\User::deleted(fn () => $cache->clearByPattern('users:*'));
+}
+```
+
 Notes
 
 - Uses your Laravel Redis config (database.redis.default) automatically.
 - Bypass with header `X-Bypass-Cache: 1`.
 - JSON responses (status 200) are cached by default for 300s.
+
+## 📷 Proof
+
+![RediSync usage proof](https://rffureejqjzrbqzrcyxv.supabase.co/storage/v1/object/public/images/redisync.png)
 
 ## 📝 Notes
 
