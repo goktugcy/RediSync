@@ -28,7 +28,7 @@ Add to your project:
 composer require redisync/core
 ```
 
-Requirements: PHP 8.1+, Redis (via Predis), optional DB drivers pdo_mysql/pdo_pgsql.
+Requirements: PHP 8.1+, Redis (via Predis 1.x or 2.x), optional DB drivers pdo_mysql/pdo_pgsql.
 
 ## ⚙️ Configuration
 
@@ -118,22 +118,40 @@ composer stan
 composer lint
 ```
 
-## 🔌 Framework Integration (Laravel example)
+## 🔌 Laravel (zero‑config, auto‑discovery)
 
-Use a Service Provider to reuse Laravel’s Redis/DB config:
+After install, RediSync auto-registers a Service Provider, a Facade, and a route middleware alias.
+
+- Facade usage in controllers:
 
 ```php
-$this->app->singleton(RediSync\Cache\CacheManager::class, function () {
-  $r = config('database.redis.default');
-  return RediSync\Cache\CacheManager::fromConfig([
-    'host' => $r['host'] ?? '127.0.0.1',
-    'port' => $r['port'] ?? 6379,
-    'password' => $r['password'] ?? null,
-    'database' => $r['database'] ?? 0,
-    'prefix' => 'redisync:',
-  ]);
-});
+use RediSync\\Bridge\\Laravel\\Facades\\RediSyncCache as Cache;
+
+public function show(int $id) {
+  $key = "users:$id";
+  if ($data = Cache::get($key)) {
+    return response()->json($data);
+  }
+  $user = \\App\\Models\\User::findOrFail($id);
+  Cache::set($key, $user->toArray(), 300);
+  return response()->json($user);
+}
 ```
+
+- Route-level HTTP caching (GET-only) via alias `redisync.cache`:
+
+```php
+use Illuminate\\Support\\Facades\\Route;
+
+Route::middleware('redisync.cache')
+  ->get('/api/users/{id}', [UserController::class, 'show']);
+```
+
+Notes
+
+- Uses your Laravel Redis config (database.redis.default) automatically.
+- Bypass with header `X-Bypass-Cache: 1`.
+- JSON responses (status 200) are cached by default for 300s.
 
 ## 📝 Notes
 

@@ -32,6 +32,7 @@
     "nyholm/psr7": "^1.8 || ^2.0"
   },
   "suggest": {
+    "illuminate/support": "For Laravel auto-discovery & facades when used inside Laravel (^10|^11)",
     "doctrine/dbal": "Required if you use DatabaseManager (pick a version compatible with your stack, e.g., ^3.8 for Laravel + Carbon 3)",
     "laminas/laminas-diactoros": "Alternative PSR-7/17 implementation",
     "guzzlehttp/psr7": "Alternative PSR-7 implementation (v1 or v2)"
@@ -39,6 +40,16 @@
   "autoload": {
     "psr-4": {
       "RediSync\\": "src/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "RediSync\\Bridge\\Laravel\\RediSyncServiceProvider"
+      ],
+      "aliases": {
+        "RediSyncCache": "RediSync\\Bridge\\Laravel\\Facades\\RediSyncCache"
+      }
     }
   },
   "require-dev": {

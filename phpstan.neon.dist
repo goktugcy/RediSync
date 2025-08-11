@@ -4,3 +4,5 @@ parameters:
     - src
     - tests
   checkMissingIterableValueType: false
+  excludePaths:
+    - src/Bridge/**
