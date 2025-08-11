@@ -1,6 +1,6 @@
 # RediSync
 
-High-performance caching middleware for PHP that stores data in Redis while syncing with MySQL or PostgreSQL.
+High-performance HTTP caching for PHP with Redis storage and optional DB-driven invalidation/write-through (MySQL/PostgreSQL via Doctrine DBAL).
 
 ![Packagist Version](https://img.shields.io/packagist/v/redisync/core?style=flat-square)
 ![Total Downloads](https://img.shields.io/packagist/dt/redisync/core?style=flat-square)
@@ -16,7 +16,8 @@ Quick nav: [Install](#-install) · [Laravel Quickstart](#laravel-quickstart) · 
 
 - PSR-15 middleware: automatic HTTP cache hit/miss flow.
 - PSR-7/17 support via nyholm/psr7.
-- GET-only caching by default, optional bypass with the X-Bypass-Cache header.
+- GET/HEAD-only caching by default, optional bypass with the X-Bypass-Cache header.
+- Cache headers: X-RediSync-Cache (HIT/MISS) and Age (PSR-15 path).
 - Safe caching via status whitelist (default: [200]) and Content-Type allow list.
 - TTL map by path pattern/regex for per-endpoint TTL control.
 - CLI for cache ops: clear-cache, list-keys, key-info, warmup.
@@ -89,8 +90,8 @@ $middleware = new CacheMiddleware(
   ],
 );
 
-// Add it to your PSR-15 stack (Mezzio, Slim, etc.). Middleware caches only GET requests.
-// To bypass caching: send header X-Bypass-Cache: 1
+// Add it to your PSR-15 stack (Mezzio, Slim, etc.). Middleware caches only GET/HEAD by default.
+// To bypass caching: send header X-Bypass-Cache: 1. Responses include X-RediSync-Cache: HIT|MISS and Age.
 ```
 
 ## 🧾 Write-through DB ➜ Cache
