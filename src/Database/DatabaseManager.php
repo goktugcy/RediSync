@@ -7,6 +7,7 @@ namespace RediSync\Database;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Exception as DBALException;
+use RediSync\Cache\CacheManager;
 
 class DatabaseManager
 {
@@ -65,6 +66,86 @@ class DatabaseManager
             return $affected;
         } catch (DBALException $e) {
             throw $e; // bubble up for now
+        }
+    }
+
+    /**
+     * Write-through helper: perform a DB write, then update cache entries atomically on success.
+     *
+     * Usage:
+     *  - Static plan (array of entries):
+     *      $db->writeThrough(
+     *          'UPDATE users SET name = :n WHERE id = :id', ['n' => $name, 'id' => $id],
+     *          $cache,
+     *          [ ['key' => "users:$id", 'value' => $newUserArray, 'ttl' => 300] ]
+     *      );
+     *
+     *  - Callable plan (compute entries from result):
+     *      $db->writeThrough($sql, $params, $cache, function(int $affected, array $params, Connection $conn) {
+     *          if ($affected > 0) {
+     *              // Example: $user = fetch from DB here based on $params
+     *              $user = [];
+     *              return [ ['key' => "users:{$params['id']}", 'value' => $user, 'ttl' => 300] ];
+     *          }
+     *          return [];
+     *      });
+     *
+     * Entry formats supported:
+     *  - [ ['key' => string, 'value' => mixed, 'ttl' => ?int], ... ]
+     *  - [ 'key1' => mixed, 'key2' => mixed ]  // uses $defaultTtl
+     */
+    public function writeThrough(
+        string $sql,
+        array $params,
+        CacheManager $cache,
+        array | callable $cachePlan,
+        ?int $defaultTtl = null
+    ): int {
+        try {
+            return $this->connection->transactional(function (Connection $conn) use ($sql, $params, $cache, $cachePlan, $defaultTtl): int {
+                $affected = $conn->executeStatement($sql, $params);
+
+                // Invalidate as usual for compatibility with existing patterns
+                $this->maybeInvalidate($sql, $params);
+
+                // Build cache entries
+                $entries = is_callable($cachePlan)
+                ? (array) $cachePlan((int) $affected, $params, $conn)
+                : $cachePlan;
+
+                if ($affected > 0 && ! empty($entries)) {
+                    $this->applyCacheEntries($cache, $entries, $defaultTtl);
+                }
+
+                return (int) $affected;
+            });
+        } catch (DBALException $e) {
+            throw $e;
+        }
+    }
+
+    /** @param array<int|string, mixed>|array<int, array{key:string,value:mixed,ttl?:int}> $entries */
+    private function applyCacheEntries(CacheManager $cache, array $entries, ?int $defaultTtl): void
+    {
+        // Case 1: list of structured entries
+        $isStructuredList = isset($entries[0]) && is_array($entries[0]) && array_key_exists('key', $entries[0]);
+        if ($isStructuredList) {
+            foreach ($entries as $entry) {
+                if (! is_array($entry) || ! isset($entry['key'])) {
+                    continue;
+                }
+                $ttl = array_key_exists('ttl', $entry) ? (is_null($entry['ttl']) ? null : (int) $entry['ttl']) : $defaultTtl;
+                $cache->set((string) $entry['key'], $entry['value'] ?? null, $ttl);
+            }
+            return;
+        }
+
+        // Case 2: associative map key => value
+        $isAssoc = fn(array $a) => array_keys($a) !== range(0, count($a) - 1);
+        if ($isAssoc($entries)) {
+            foreach ($entries as $key => $value) {
+                $cache->set((string) $key, $value, $defaultTtl);
+            }
         }
     }
 

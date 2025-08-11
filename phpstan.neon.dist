@@ -3,6 +3,8 @@ parameters:
   paths:
     - src
     - tests
-  checkMissingIterableValueType: false
+  ignoreErrors:
+    -
+      identifier: missingType.iterableValue
   excludePaths:
     - src/Bridge/**

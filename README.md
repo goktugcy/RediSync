@@ -21,6 +21,7 @@ Quick nav: [Install](#-install) · [Laravel Quickstart](#laravel-quickstart) · 
 - TTL map by path pattern/regex for per-endpoint TTL control.
 - CLI for cache ops: clear-cache, list-keys, key-info, warmup.
 - Doctrine DBAL-based DatabaseManager with invalidation hooks.
+- Write-through DB helper: update cache immediately after successful DB writes.
 
 ## 🔧 Install
 
@@ -92,6 +93,40 @@ $middleware = new CacheMiddleware(
 // To bypass caching: send header X-Bypass-Cache: 1
 ```
 
+## 🧾 Write-through DB ➜ Cache
+
+Update cache immediately after a successful DB write (inside a transaction):
+
+```php
+use RediSync\Database\DatabaseManager;
+use RediSync\Cache\CacheManager;
+
+$db = DatabaseManager::fromDsn('sqlite:///:memory:');
+// ... create table/users ...
+
+$affected = $db->writeThrough(
+  'UPDATE users SET name = :n WHERE id = :id', ['n' => 'alice', 'id' => 1],
+  $cache,
+  // Build cache entries from the write result
+  function (int $affected, array $params, \Doctrine\DBAL\Connection $conn): array {
+    if ($affected > 0) {
+      return [ ['key' => "users:{$params['id']}", 'value' => ['id' => $params['id'], 'name' => $params['n']], 'ttl' => 300] ];
+    }
+    return [];
+  }
+);
+```
+
+Shortcut: you can also pass a simple associative array as the plan and use a default TTL:
+
+```php
+$db->writeThrough(
+  'DELETE FROM users WHERE id = :id', ['id' => 1], $cache,
+  [ 'users:1' => null ], // set null or use clearByPattern in an onInvalidate callback
+  60
+);
+```
+
 ## Laravel Quickstart
 
 Auto-discovery registers a Service Provider, Facade, and `redisync.cache` middleware.
@@ -152,6 +187,23 @@ Notes: Uses Laravel Redis config automatically, `X-Bypass-Cache: 1` bypasses, JS
 
 - Bypass with header `X-Bypass-Cache: 1`.
 - JSON responses (status 200) are cached by default for 300s.
+
+### Write-through in Laravel
+
+```php
+// In a service or controller where you have the DB connection DSN
+use RediSync\Bridge\Laravel\Facades\RediSyncCache as Cache;
+use RediSync\Database\DatabaseManager;
+
+$db = DatabaseManager::fromDsn(env('DATABASE_URL'));
+$db->writeThrough(
+  'INSERT INTO posts (title) VALUES (:t)', ['t' => $title],
+  app(\RediSync\Cache\CacheManager::class),
+  fn(int $affected, array $p, \Doctrine\DBAL\Connection $c) => $affected
+    ? [ ['key' => 'posts:latest', 'value' => /* recompute */ [], 'ttl' => 120] ]
+    : []
+);
+```
 
 ## 📷 Proof
 
