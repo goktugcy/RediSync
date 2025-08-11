@@ -35,8 +35,11 @@ class CacheMiddleware implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        // Only cache idempotent GET requests by default
-        if (strtoupper($request->getMethod()) !== 'GET') {
+        $method = strtoupper($request->getMethod());
+        $isHead = $method === 'HEAD';
+        $isGet  = $method === 'GET';
+        // Only cache idempotent GET/HEAD requests by default
+        if (! $isGet && ! $isHead) {
             return $handler->handle($request);
         }
         // Allow bypass with header X-Bypass-Cache: 1
@@ -44,18 +47,32 @@ class CacheMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        $key    = $this->keys->fromRequest($request);
-        $cached = $this->cache->get($key);
+        // For HEAD, use the same cache key as GET
+        $requestForKey = $isHead ? $request->withMethod('GET') : $request;
+        $key           = $this->keys->fromRequest($requestForKey);
+        $cached        = $this->cache->get($key);
         if ($cached !== null && isset($cached['status'], $cached['headers'], $cached['body'])) {
             $response = $this->responseFactory->createResponse($cached['status']);
             foreach ($cached['headers'] as $name => $values) {
                 $response = $response->withHeader($name, $values);
+            }
+            // Age header if timestamp exists
+            if (isset($cached['ts']) && is_int($cached['ts'])) {
+                $age      = max(0, time() - $cached['ts']);
+                $response = $response->withHeader('Age', (string) $age);
+            }
+            $response = $response->withHeader('X-RediSync-Cache', 'HIT');
+            // For HEAD, return headers only
+            if ($isHead) {
+                $empty = $this->streamFactory->createStream('');
+                return $response->withBody($empty);
             }
             $stream = $this->streamFactory->createStream($cached['body']);
             return $response->withBody($stream);
         }
 
         $response = $handler->handle($request);
+        $response = $response->withHeader('X-RediSync-Cache', 'MISS');
 
         $body    = (string) $response->getBody();
         $headers = $response->getHeaders();
@@ -63,12 +80,16 @@ class CacheMiddleware implements MiddlewareInterface
         if (! $this->isCacheableResponse($response)) {
             return $response;
         }
-        $ttl = $this->resolveTtl($request->getUri()->getPath());
-        $this->cache->set($key, [
-            'status'  => $status,
-            'headers' => $headers,
-            'body'    => $body,
-        ], $ttl);
+        // Only store bodies for GET responses; HEAD uses GET key but shouldn't store bodyless responses
+        if ($isGet) {
+            $ttl = $this->resolveTtl($request->getUri()->getPath());
+            $this->cache->set($key, [
+                'status'  => $status,
+                'headers' => $headers,
+                'body'    => $body,
+                'ts'      => time(),
+            ], $ttl);
+        }
 
         return $response;
     }
