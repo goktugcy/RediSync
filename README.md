@@ -10,6 +10,8 @@ High-performance caching middleware for PHP that stores data in Redis while sync
 
 > Zero-friction HTTP caching for PHP apps: PSR-15 middleware, Redis-backed, DB-aware invalidation.
 
+Quick nav: [Install](#-install) · [Laravel Quickstart](#laravel-quickstart) · [PSR-15 Middleware](#-middleware-usage) · [CLI](#-cli) · [Troubleshooting](#-troubleshooting-installs-laravelcarbon--doctrine-dbal) · [Proof](#-proof)
+
 ## ✨ Features
 
 - PSR-15 middleware: automatic HTTP cache hit/miss flow.
@@ -90,96 +92,64 @@ $middleware = new CacheMiddleware(
 // To bypass caching: send header X-Bypass-Cache: 1
 ```
 
-## 🔑 Key Strategy
+## Laravel Quickstart
 
-KeyGenerator builds a deterministic cache key:
+Auto-discovery registers a Service Provider, Facade, and `redisync.cache` middleware.
 
-- Method + path + sorted query params
-- Use ignoredParams to exclude volatile params (e.g., nonce, \_ts)
-
-```php
-$keys = new KeyGenerator('http', ignoredParams: ['nonce']);
-```
-
-## 🧰 CLI
-
-```bash
-./vendor/bin/redisync clear-cache 'users:*'
-./vendor/bin/redisync list-keys 'users:*' 50
-./vendor/bin/redisync key-info 'users:1'
-printf '%s\n' 'warm:key:1' 'warm:key:2' | ./vendor/bin/redisync warmup 120
-```
-
-## 🧪 Tests & Quality
-
-```bash
-composer test
-composer stan
-composer lint
-```
-
-## 🔌 Laravel (zero‑config, auto‑discovery)
-
-After install, RediSync auto-registers a Service Provider, a Facade, and a route middleware alias.
-
-- Facade usage in controllers:
+- Facade (controller):
 
 ```php
 use RediSync\\Bridge\\Laravel\\Facades\\RediSyncCache as Cache;
-
 public function show(int $id) {
-  $key = "users:$id";
-  if ($data = Cache::get($key)) {
-    return response()->json($data);
-  }
-  $user = \\App\\Models\\User::findOrFail($id);
-  Cache::set($key, $user->toArray(), 300);
-  return response()->json($user);
+  $k = "users:$id"; if ($d = Cache::get($k)) return response()->json($d);
+  $u = \\App\\Models\\User::findOrFail($id); Cache::set($k, $u->toArray(), 300);
+  return response()->json($u);
 }
 ```
 
-- Route-level HTTP caching (GET-only) via alias `redisync.cache`:
+- Route cache (GET):
 
 ```php
 use Illuminate\\Support\\Facades\\Route;
-
-Route::middleware('redisync.cache')
-  ->get('/api/users/{id}', [UserController::class, 'show']);
+Route::middleware('redisync.cache')->get('/api/users/{id}', [UserController::class, 'show']);
 ```
 
-- HTML view caching (example: getProfile):
+- HTML cache (view):
 
 ```php
-use Illuminate\Support\Facades\Auth;
-use RediSync\Bridge\Laravel\Facades\RediSyncCache as Cache;
-
+use Illuminate\\Support\\Facades\\Auth;
+use RediSync\\Bridge\\Laravel\\Facades\\RediSyncCache as Cache;
 public function getProfile() {
-  $user = Auth::user();
-  if (! $user) return redirect('404');
-  $key = "users:profile:{$user->id}";
-  if ($html = Cache::get($key)) {
-    return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
-  }
-  $html = view('themes.default1.agent.helpdesk.user.profile', compact('user'))->render();
-  Cache::set($key, $html, 300);
-  return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
+  $u = Auth::user(); if (! $u) return redirect('404');
+  $k = "users:profile:{$u->id}"; if ($h = Cache::get($k)) return response($h);
+  $h = view('profile', ['user' => $u])->render(); Cache::set($k, $h, 300); return response($h);
 }
 ```
 
-- Invalidation via model events:
+- Data cache (array):
+
+```php
+use Illuminate\\Support\\Facades\\Auth;
+use RediSync\\Bridge\\Laravel\\Facades\\RediSyncCache as Cache;
+public function getProfileData() {
+  $u = Auth::user(); if (! $u) return redirect('404');
+  $k = "users:data:{$u->id}"; $d = Cache::get($k) ?: $u->toArray();
+  if (! Cache::get($k)) Cache::set($k, $d, 300);
+  return view('profile', ['user' => $u]);
+}
+```
+
+- Invalidation (events):
 
 ```php
 // app/Providers/AppServiceProvider.php
-public function boot(\RediSync\Cache\CacheManager $cache): void
-{
-  \App\Models\User::saved(fn () => $cache->clearByPattern('users:*'));
-  \App\Models\User::deleted(fn () => $cache->clearByPattern('users:*'));
-}
+public function boot(\\RediSync\\Cache\\CacheManager $cache): void
+{ \\App\\Models\\User::saved(fn()=> $cache->clearByPattern('users:*'));
+  \\App\\Models\\User::deleted(fn()=> $cache->clearByPattern('users:*')); }
 ```
 
-Notes
+Notes: Uses Laravel Redis config automatically, `X-Bypass-Cache: 1` bypasses, JSON 200 is cached ~300s by default.
 
-- Uses your Laravel Redis config (database.redis.default) automatically.
 - Bypass with header `X-Bypass-Cache: 1`.
 - JSON responses (status 200) are cached by default for 300s.
 
