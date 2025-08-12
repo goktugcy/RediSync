@@ -93,13 +93,15 @@ $middleware = new CacheMiddleware(
     '#^/users/\\d+$#' => 300,
   ],
 );
-```
 
 // Add it to your PSR-15 stack (Mezzio, Slim, etc.). Middleware caches only GET/HEAD by default.
 // Conditional requests: send If-None-Match; 304 is returned when ETag matches (ETag is auto-generated if missing).
 // Cache-Control: requests with no-store bypass; responses with no-store/private are not stored.
 // Vary safety: Authorization/Cookie on the request bypass the cache to protect user-specific content.
 // To force-bypass: send header X-Bypass-Cache: 1. Responses include X-RediSync-Cache: HIT|MISS and Age.
+```
+
+
 
 ### HTTP semantics: ETag, 304, no-store/private, vary
 
