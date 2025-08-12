@@ -101,8 +101,6 @@ $middleware = new CacheMiddleware(
 // To force-bypass: send header X-Bypass-Cache: 1. Responses include X-RediSync-Cache: HIT|MISS and Age.
 ```
 
-
-
 ### HTTP semantics: ETag, 304, no-store/private, vary
 
 - ETag: If the origin response doesn't include ETag, RediSync computes one from the body. Clients sending `If-None-Match` get `304 Not Modified` when it matches.
