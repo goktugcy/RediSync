@@ -18,6 +18,9 @@ Quick nav: [Install](#-install) · [Laravel Quickstart](#laravel-quickstart) · 
 - PSR-7/17 support via nyholm/psr7.
 - GET/HEAD-only caching by default, optional bypass with the X-Bypass-Cache header.
 - Cache headers: X-RediSync-Cache (HIT/MISS) and Age (PSR-15 path).
+- Conditional requests: automatic ETag generation and If-None-Match → 304.
+- Cache-Control aware: respects no-store and private (won't serve/store).
+- Vary safety: bypasses cache when Authorization or Cookie exist to avoid leakage.
 - Safe caching via status whitelist (default: [200]) and Content-Type allow list.
 - TTL map by path pattern/regex for per-endpoint TTL control.
 - CLI for cache ops: clear-cache, list-keys, key-info, warmup.
@@ -92,7 +95,17 @@ $middleware = new CacheMiddleware(
 );
 
 // Add it to your PSR-15 stack (Mezzio, Slim, etc.). Middleware caches only GET/HEAD by default.
-// To bypass caching: send header X-Bypass-Cache: 1. Responses include X-RediSync-Cache: HIT|MISS and Age.
+// Conditional requests: send If-None-Match; 304 is returned when ETag matches (ETag is auto-generated if missing).
+// Cache-Control: requests with no-store bypass; responses with no-store/private are not stored.
+// Vary safety: Authorization/Cookie on the request bypass the cache to protect user-specific content.
+// To force-bypass: send header X-Bypass-Cache: 1. Responses include X-RediSync-Cache: HIT|MISS and Age.
+
+### HTTP semantics: ETag, 304, no-store/private, vary
+
+- ETag: If the origin response doesn't include ETag, RediSync computes one from the body. Clients sending `If-None-Match` get `304 Not Modified` when it matches.
+- no-store/private: A request with `Cache-Control: no-store` bypasses cache. A response with `no-store` or `private` is not stored by RediSync (shared cache).
+- Vary safety: Requests carrying `Authorization` or `Cookie` headers bypass cache to avoid leaking personalized content.
+- Headers: On cache HITs RediSync adds `X-RediSync-Cache: HIT` and `Age`. On MISS it sets `X-RediSync-Cache: MISS`.
 ```
 
 ## � Facade usage
@@ -210,6 +223,13 @@ Notes: Uses Laravel Redis config automatically, `X-Bypass-Cache: 1` bypasses, JS
 
 - Bypass with header `X-Bypass-Cache: 1`.
 - JSON responses (status 200) are cached by default for 300s.
+
+HTTP semantics in Laravel middleware:
+
+- GET/HEAD cache with `X-RediSync-Cache` (HIT/MISS) and `Age` on hits.
+- `If-None-Match` supported; returns `304 Not Modified` when matching the stored ETag (computed if absent).
+- Respects `Cache-Control: no-store` on requests and `no-store`/`private` on responses (won't store).
+- Requests containing `Authorization` or cookies bypass the cache for safety.
 
 ### Write-through in Laravel
 
