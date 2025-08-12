@@ -51,6 +51,10 @@ class CacheMiddleware implements MiddlewareInterface
         if ($reqCc !== '' && stripos($reqCc, 'no-store') !== false) {
             return $handler->handle($request);
         }
+        // Vary safety: if Authorization or Cookie is present, bypass shared cache to avoid user-specific leakage
+        if ($request->hasHeader('Authorization') || $request->hasHeader('Cookie')) {
+            return $handler->handle($request);
+        }
 
         // For HEAD, use the same cache key as GET
         $requestForKey = $isHead ? $request->withMethod('GET') : $request;
@@ -96,10 +100,13 @@ class CacheMiddleware implements MiddlewareInterface
         if (! $this->isCacheableResponse($response)) {
             return $response;
         }
-        // Respect response Cache-Control: no-store (do not store)
+        // Respect response Cache-Control: no-store/private (do not store in shared cache)
         $resCc = $response->getHeaderLine('Cache-Control');
-        if ($resCc !== '' && stripos($resCc, 'no-store') !== false) {
-            return $response;
+        if ($resCc !== '') {
+            $ccLower = strtolower($resCc);
+            if (str_contains($ccLower, 'no-store') || str_contains($ccLower, 'private')) {
+                return $response;
+            }
         }
         // Ensure ETag header exists: use origin's ETag or compute from body
         $etagHeader = $response->getHeaderLine('ETag');
