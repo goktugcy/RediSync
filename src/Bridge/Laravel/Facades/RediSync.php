@@ -16,7 +16,7 @@ use RediSync\Cache\CacheManager;
  * @method static array keyInfo(string $key)
  * @method static mixed remember(string $key, int $ttl, callable $callback)
  */
-final class RediSyncCache extends Facade
+final class RediSync extends Facade
 {
     protected static function getFacadeAccessor(): string
     {

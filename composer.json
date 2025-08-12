@@ -48,7 +48,8 @@
         "RediSync\\Bridge\\Laravel\\RediSyncServiceProvider"
       ],
       "aliases": {
-        "RediSyncCache": "RediSync\\Bridge\\Laravel\\Facades\\RediSyncCache"
+        "RediSyncCache": "RediSync\\Bridge\\Laravel\\Facades\\RediSyncCache",
+        "RediSync": "RediSync\\Bridge\\Laravel\\Facades\\RediSync"
       }
     }
   },

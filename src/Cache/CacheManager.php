@@ -57,6 +57,26 @@ class CacheManager
         }
     }
 
+    /**
+     * Get from cache or compute and store.
+     *
+     * @template T
+     * @param string   $key
+     * @param int      $ttl   TTL in seconds
+     * @param callable():T $callback  Returns the value to cache on miss
+     * @return mixed Returns cached or computed value
+     */
+    public function remember(string $key, int $ttl, callable $callback): mixed
+    {
+        $hit = $this->get($key);
+        if ($hit !== null) {
+            return $hit;
+        }
+        $value = $callback();
+        $this->set($key, $value, $ttl);
+        return $value;
+    }
+
     public function delete(string $key): void
     {
         $this->client->del([$this->key($key)]);

@@ -23,6 +23,7 @@ Quick nav: [Install](#-install) · [Laravel Quickstart](#laravel-quickstart) · 
 - CLI for cache ops: clear-cache, list-keys, key-info, warmup.
 - Doctrine DBAL-based DatabaseManager with invalidation hooks.
 - Write-through DB helper: update cache immediately after successful DB writes.
+- remember() helper: compute-or-cache convenience API (vanilla and Laravel facades).
 
 ## 🔧 Install
 
@@ -94,7 +95,29 @@ $middleware = new CacheMiddleware(
 // To bypass caching: send header X-Bypass-Cache: 1. Responses include X-RediSync-Cache: HIT|MISS and Age.
 ```
 
-## 🧾 Write-through DB ➜ Cache
+## � Facade usage
+
+### Vanilla PHP (framework-agnostic)
+
+```php
+use RediSync\Cache\CacheManager;
+use RediSync\Facades\RediSync;
+
+$cache = CacheManager::fromConfig(['host' => '127.0.0.1', 'port' => 6379, 'database' => 0, 'prefix' => 'app:']);
+RediSync::setInstance($cache);
+
+// get / set
+RediSync::set('users:1', ['id' => 1, 'name' => 'Ada'], 300);
+$data = RediSync::get('users:1');
+
+// remember (compute-or-cache)
+$user = RediSync::remember('users:1', 300, function () {
+  // expensive work or DB fetch
+  return ['id' => 1, 'name' => 'Ada'];
+});
+```
+
+## �🧾 Write-through DB ➜ Cache
 
 Update cache immediately after a successful DB write (inside a transaction):
 
@@ -130,16 +153,15 @@ $db->writeThrough(
 
 ## Laravel Quickstart
 
-Auto-discovery registers a Service Provider, Facade, and `redisync.cache` middleware.
+Auto-discovery registers a Service Provider, Facades, and `redisync.cache` middleware.
 
-- Facade (controller):
+- Facade (controller) using remember():
 
 ```php
-use RediSync\\Bridge\\Laravel\\Facades\\RediSyncCache as Cache;
+use RediSync\\Bridge\\Laravel\\Facades\\RediSync; // static facade
 public function show(int $id) {
-  $k = "users:$id"; if ($d = Cache::get($k)) return response()->json($d);
-  $u = \\App\\Models\\User::findOrFail($id); Cache::set($k, $u->toArray(), 300);
-  return response()->json($u);
+  $user = RediSync::remember("users:$id", 300, fn() => \\App\\Models\\User::findOrFail($id)->toArray());
+  return response()->json($user);
 }
 ```
 
@@ -150,7 +172,7 @@ use Illuminate\\Support\\Facades\\Route;
 Route::middleware('redisync.cache')->get('/api/users/{id}', [UserController::class, 'show']);
 ```
 
-- HTML cache (view):
+- HTML cache (view) via RediSyncCache (array/string payloads):
 
 ```php
 use Illuminate\\Support\\Facades\\Auth;
@@ -162,7 +184,7 @@ public function getProfile() {
 }
 ```
 
-- Data cache (array):
+- Data cache (array) via RediSyncCache:
 
 ```php
 use Illuminate\\Support\\Facades\\Auth;
