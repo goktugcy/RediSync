@@ -10,7 +10,7 @@ High-performance HTTP caching for PHP with Redis storage and optional DB-driven 
 
 > Zero-friction HTTP caching for PHP apps: PSR-15 middleware, Redis-backed, DB-aware invalidation.
 
-Quick nav: [Install](#install) · [Middleware](#middleware-usage) · [Facade](#facade-usage) · [Write-through](#write-through-db--cache) · [Laravel](#laravel-quickstart) · [CLI](#cli) · [Troubleshooting](#troubleshooting-installs-laravelcarbon--doctrine-dbal) · [Proof](#proof)
+Quick nav: [Install](#install) · [Middleware](#middleware-usage) · [Facade](#facade-usage) · [Write-through](#write-through-db-to-cache) · [Laravel](#laravel-quickstart) · [CLI](#cli) · [Troubleshooting](#troubleshooting-installs-laravelcarbon-and-doctrine-dbal) · [Proof](#proof)
 
 ## ✨ Features
 
@@ -130,7 +130,7 @@ $user = RediSync::remember('users:1', 300, function () {
 });
 ```
 
-## 🧾 Write-through DB ➜ Cache
+## Write-through DB to Cache
 
 Update cache immediately after a successful DB write (inside a transaction):
 
@@ -271,7 +271,11 @@ Commands:
   - Example: `vendor/bin/redisync key-info users:1`
 - warmup [ttl]
   - Read keys from STDIN and set placeholder values with TTL (default 60).
-  - Example: `printf "a\nb\n" | vendor/bin/redisync warmup 30`
+  - Example:
+
+```bash
+printf "a\nb\n" | vendor/bin/redisync warmup 30
+```
 
 ## 📷 Proof
 
@@ -283,7 +287,7 @@ Commands:
 - Use status whitelist and Content-Type filters for safe caching.
 - TTL map allows per-path TTL control.
 
-## ❗ Troubleshooting installs (Laravel/Carbon + Doctrine DBAL)
+## Troubleshooting installs (Laravel/Carbon and Doctrine DBAL)
 
 If your app uses Laravel 11 + Carbon 3, you may see a conflict involving `doctrine/dbal` and `carbonphp/carbon-doctrine-types` when installing `redisync/core`.
 
