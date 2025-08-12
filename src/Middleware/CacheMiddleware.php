@@ -46,6 +46,11 @@ class CacheMiddleware implements MiddlewareInterface
         if ($request->getHeaderLine('X-Bypass-Cache') === '1') {
             return $handler->handle($request);
         }
+        // Respect request Cache-Control: no-store (do not use or write cache)
+        $reqCc = $request->getHeaderLine('Cache-Control');
+        if ($reqCc !== '' && stripos($reqCc, 'no-store') !== false) {
+            return $handler->handle($request);
+        }
 
         // For HEAD, use the same cache key as GET
         $requestForKey = $isHead ? $request->withMethod('GET') : $request;
@@ -62,6 +67,17 @@ class CacheMiddleware implements MiddlewareInterface
                 $response = $response->withHeader('Age', (string) $age);
             }
             $response = $response->withHeader('X-RediSync-Cache', 'HIT');
+            // If-None-Match handling: return 304 when ETag matches
+            $ifNoneMatch = $request->getHeaderLine('If-None-Match');
+            $etag        = $cached['etag'] ?? null;
+            if ($ifNoneMatch !== '' && $etag) {
+                if ($this->ifNoneMatchSatisfied($ifNoneMatch, (string) $etag)) {
+                    // 304 Not Modified: empty body, include ETag
+                    $response = $response->withStatus(304)->withHeader('ETag', (string) $etag);
+                    $empty    = $this->streamFactory->createStream('');
+                    return $response->withBody($empty);
+                }
+            }
             // For HEAD, return headers only
             if ($isHead) {
                 $empty = $this->streamFactory->createStream('');
@@ -80,6 +96,19 @@ class CacheMiddleware implements MiddlewareInterface
         if (! $this->isCacheableResponse($response)) {
             return $response;
         }
+        // Respect response Cache-Control: no-store (do not store)
+        $resCc = $response->getHeaderLine('Cache-Control');
+        if ($resCc !== '' && stripos($resCc, 'no-store') !== false) {
+            return $response;
+        }
+        // Ensure ETag header exists: use origin's ETag or compute from body
+        $etagHeader = $response->getHeaderLine('ETag');
+        $etag       = $etagHeader !== '' ? $etagHeader : ('"' . md5($body) . '"');
+        if ($etagHeader === '') {
+            $response = $response->withHeader('ETag', $etag);
+            // refresh headers snapshot to include ETag
+            $headers = $response->getHeaders();
+        }
         // Only store bodies for GET responses; HEAD uses GET key but shouldn't store bodyless responses
         if ($isGet) {
             $ttl = $this->resolveTtl($request->getUri()->getPath());
@@ -88,10 +117,30 @@ class CacheMiddleware implements MiddlewareInterface
                 'headers' => $headers,
                 'body'    => $body,
                 'ts'      => time(),
+                'etag'    => $etag,
             ], $ttl);
         }
 
         return $response;
+    }
+
+    private function ifNoneMatchSatisfied(string $ifNoneMatch, string $etag): bool
+    {
+        // Support multiple ETags and weak validators
+        $etags = array_map('trim', explode(',', $ifNoneMatch));
+        foreach ($etags as $candidate) {
+            if ($candidate === '*') {
+                return true;
+            }
+            $c = $candidate;
+            if (str_starts_with($c, 'W/')) {
+                $c = substr($c, 2);
+            }
+            if ($c === $etag) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function isCacheableResponse(ResponseInterface $response): bool
