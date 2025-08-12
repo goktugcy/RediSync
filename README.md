@@ -17,7 +17,7 @@ Quick nav: [Install](#install) · [Middleware](#middleware-usage) · [Facade](#f
 - PSR-15 middleware: automatic HTTP cache hit/miss flow.
 - PSR-7/17 support via nyholm/psr7.
 - GET/HEAD-only caching by default, optional bypass with the X-Bypass-Cache header.
-- Cache headers: X-RediSync-Cache (HIT/MISS) and Age (PSR-15 path).
+- Cache headers: X-RediSync-Cache (HIT/MISS) and Age on hits (PSR-15 and Laravel).
 - Conditional requests: automatic ETag generation and If-None-Match → 304.
 - Cache-Control aware: respects no-store and private (won't serve/store).
 - Vary safety: bypasses cache when Authorization or Cookie exist to avoid leakage.
@@ -36,7 +36,7 @@ Add to your project:
 composer require redisync/core
 ```
 
-Requirements: PHP 8.1+, Redis (via Predis 1.x or 2.x), optional DB drivers pdo_mysql/pdo_pgsql.
+Requirements: PHP 8.1+, Redis (via Predis 1.x or 2.x). Optional: Doctrine DBAL and DB drivers (pdo_mysql/pdo_pgsql) if you use DatabaseManager.
 
 ## ⚙️ Configuration
 
@@ -221,10 +221,7 @@ public function boot(\RediSync\Cache\CacheManager $cache): void
 }
 ```
 
-Notes: Uses Laravel Redis config automatically, `X-Bypass-Cache: 1` bypasses, JSON 200 is cached ~300s by default.
-
-- Bypass with header `X-Bypass-Cache: 1`.
-- JSON responses (status 200) are cached by default for 300s.
+Notes: Uses Laravel Redis config automatically. By default, JSON 200 responses are cached for ~300s. Bypass with header `X-Bypass-Cache: 1`.
 
 HTTP semantics in Laravel middleware:
 
