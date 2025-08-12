@@ -10,7 +10,7 @@ High-performance HTTP caching for PHP with Redis storage and optional DB-driven 
 
 > Zero-friction HTTP caching for PHP apps: PSR-15 middleware, Redis-backed, DB-aware invalidation.
 
-Quick nav: [Install](#-install) · [Laravel Quickstart](#laravel-quickstart) · [PSR-15 Middleware](#-middleware-usage) · [CLI](#-cli) · [Troubleshooting](#-troubleshooting-installs-laravelcarbon--doctrine-dbal) · [Proof](#-proof)
+Quick nav: [Install](#install) · [Middleware](#middleware-usage) · [Facade](#facade-usage) · [Write-through](#write-through-db--cache) · [Laravel](#laravel-quickstart) · [CLI](#cli) · [Troubleshooting](#troubleshooting-installs-laravelcarbon--doctrine-dbal) · [Proof](#proof)
 
 ## ✨ Features
 
@@ -132,7 +132,7 @@ $user = RediSync::remember('users:1', 300, function () {
 });
 ```
 
-## �🧾 Write-through DB ➜ Cache
+## 🧾 Write-through DB ➜ Cache
 
 Update cache immediately after a successful DB write (inside a transaction):
 
@@ -173,9 +173,9 @@ Auto-discovery registers a Service Provider, Facades, and `redisync.cache` middl
 - Facade (controller) using remember():
 
 ```php
-use RediSync\\Bridge\\Laravel\\Facades\\RediSync; // static facade
+use RediSync\Bridge\Laravel\Facades\RediSync; // static facade
 public function show(int $id) {
-  $user = RediSync::remember("users:$id", 300, fn() => \\App\\Models\\User::findOrFail($id)->toArray());
+  $user = RediSync::remember("users:$id", 300, fn() => \App\Models\User::findOrFail($id)->toArray());
   return response()->json($user);
 }
 ```
@@ -183,15 +183,15 @@ public function show(int $id) {
 - Route cache (GET):
 
 ```php
-use Illuminate\\Support\\Facades\\Route;
+use Illuminate\Support\Facades\Route;
 Route::middleware('redisync.cache')->get('/api/users/{id}', [UserController::class, 'show']);
 ```
 
 - HTML cache (view) via RediSyncCache (array/string payloads):
 
 ```php
-use Illuminate\\Support\\Facades\\Auth;
-use RediSync\\Bridge\\Laravel\\Facades\\RediSyncCache as Cache;
+use Illuminate\Support\Facades\Auth;
+use RediSync\Bridge\Laravel\Facades\RediSyncCache as Cache;
 public function getProfile() {
   $u = Auth::user(); if (! $u) return redirect('404');
   $k = "users:profile:{$u->id}"; if ($h = Cache::get($k)) return response($h);
@@ -202,8 +202,8 @@ public function getProfile() {
 - Data cache (array) via RediSyncCache:
 
 ```php
-use Illuminate\\Support\\Facades\\Auth;
-use RediSync\\Bridge\\Laravel\\Facades\\RediSyncCache as Cache;
+use Illuminate\Support\Facades\Auth;
+use RediSync\Bridge\Laravel\Facades\RediSyncCache as Cache;
 public function getProfileData() {
   $u = Auth::user(); if (! $u) return redirect('404');
   $k = "users:data:{$u->id}"; $d = Cache::get($k) ?: $u->toArray();
@@ -216,9 +216,11 @@ public function getProfileData() {
 
 ```php
 // app/Providers/AppServiceProvider.php
-public function boot(\\RediSync\\Cache\\CacheManager $cache): void
-{ \\App\\Models\\User::saved(fn()=> $cache->clearByPattern('users:*'));
-  \\App\\Models\\User::deleted(fn()=> $cache->clearByPattern('users:*')); }
+public function boot(\RediSync\Cache\CacheManager $cache): void
+{
+  \App\Models\User::saved(fn() => $cache->clearByPattern('users:*'));
+  \App\Models\User::deleted(fn() => $cache->clearByPattern('users:*'));
+}
 ```
 
 Notes: Uses Laravel Redis config automatically, `X-Bypass-Cache: 1` bypasses, JSON 200 is cached ~300s by default.
@@ -250,13 +252,36 @@ $db->writeThrough(
 );
 ```
 
+## 🛠️ CLI
+
+Use the bundled CLI for quick cache operations. The tool reads Redis config from `config/config.php`.
+
+```bash
+vendor/bin/redisync help
+```
+
+Commands:
+
+- clear-cache [pattern]
+  - Delete keys by pattern (default: `*`).
+  - Example: `vendor/bin/redisync clear-cache users:*`
+- list-keys [pattern] [limit]
+  - List keys (default pattern `*`, limit `100`).
+  - Example: `vendor/bin/redisync list-keys api:* 50`
+- key-info <key>
+  - Show TTL/type/size/exists.
+  - Example: `vendor/bin/redisync key-info users:1`
+- warmup [ttl]
+  - Read keys from STDIN and set placeholder values with TTL (default 60).
+  - Example: `printf "a\nb\n" | vendor/bin/redisync warmup 30`
+
 ## 📷 Proof
 
 ![RediSync usage proof](https://rffureejqjzrbqzrcyxv.supabase.co/storage/v1/object/public/images/redisync.png)
 
 ## 📝 Notes
 
-- Middleware caches only GET requests by default.
+- Middleware caches only GET/HEAD requests by default.
 - Use status whitelist and Content-Type filters for safe caching.
 - TTL map allows per-path TTL control.
 
