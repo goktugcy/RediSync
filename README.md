@@ -94,6 +94,7 @@ $middleware = new CacheMiddleware(
   ],
 );
 
+```
 // Add it to your PSR-15 stack (Mezzio, Slim, etc.). Middleware caches only GET/HEAD by default.
 // Conditional requests: send If-None-Match; 304 is returned when ETag matches (ETag is auto-generated if missing).
 // Cache-Control: requests with no-store bypass; responses with no-store/private are not stored.
@@ -108,7 +109,7 @@ $middleware = new CacheMiddleware(
 - Headers: On cache HITs RediSync adds `X-RediSync-Cache: HIT` and `Age`. On MISS it sets `X-RediSync-Cache: MISS`.
 ```
 
-## � Facade usage
+## 🧩 Facade usage
 
 ### Vanilla PHP (framework-agnostic)
 
