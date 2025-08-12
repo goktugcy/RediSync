@@ -93,7 +93,6 @@ $middleware = new CacheMiddleware(
     '#^/users/\\d+$#' => 300,
   ],
 );
-
 ```
 
 // Add it to your PSR-15 stack (Mezzio, Slim, etc.). Middleware caches only GET/HEAD by default.
@@ -108,8 +107,6 @@ $middleware = new CacheMiddleware(
 - no-store/private: A request with `Cache-Control: no-store` bypasses cache. A response with `no-store` or `private` is not stored by RediSync (shared cache).
 - Vary safety: Requests carrying `Authorization` or `Cookie` headers bypass cache to avoid leaking personalized content.
 - Headers: On cache HITs RediSync adds `X-RediSync-Cache: HIT` and `Age`. On MISS it sets `X-RediSync-Cache: MISS`.
-
-````
 
 ## 🧩 Facade usage
 
@@ -131,7 +128,7 @@ $user = RediSync::remember('users:1', 300, function () {
   // expensive work or DB fetch
   return ['id' => 1, 'name' => 'Ada'];
 });
-````
+```
 
 ## �🧾 Write-through DB ➜ Cache
 
