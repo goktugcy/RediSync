@@ -209,7 +209,7 @@ class CacheMiddleware implements MiddlewareInterface
         // hop-by-hop and sensitive headers that should not be cached/forwarded
         $unsafe = [
             'set-cookie', 'connection', 'keep-alive', 'proxy-authenticate',
-            'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'host'
+            'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'host',
         ];
         return in_array($n, $unsafe, true);
     }
