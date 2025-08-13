@@ -63,6 +63,7 @@ class CacheMiddleware implements MiddlewareInterface
         if ($cached !== null && isset($cached['status'], $cached['headers'], $cached['body'])) {
             $response = $this->responseFactory->createResponse($cached['status']);
             foreach ($cached['headers'] as $name => $values) {
+                if ($this->isUnsafeHeader($name)) {continue;}
                 $response = $response->withHeader($name, $values);
             }
             // Age header if timestamp exists
@@ -119,9 +120,11 @@ class CacheMiddleware implements MiddlewareInterface
         // Only store bodies for GET responses; HEAD uses GET key but shouldn't store bodyless responses
         if ($isGet) {
             $ttl = $this->resolveTtl($request->getUri()->getPath());
+            // sanitize headers before storing (avoid Set-Cookie and hop-by-hop)
+            $storedHeaders = array_filter($headers, fn($_, $n) => ! $this->isUnsafeHeader((string) $n), ARRAY_FILTER_USE_BOTH);
             $this->cache->set($key, [
                 'status'  => $status,
-                'headers' => $headers,
+                'headers' => $storedHeaders,
                 'body'    => $body,
                 'ts'      => time(),
                 'etag'    => $etag,
@@ -198,5 +201,16 @@ class CacheMiddleware implements MiddlewareInterface
         }
         // fallback: simple prefix match
         return str_starts_with($path, rtrim($pattern, '*'));
+    }
+
+    private function isUnsafeHeader(string $name): bool
+    {
+        $n = strtolower($name);
+        // hop-by-hop and sensitive headers that should not be cached/forwarded
+        $unsafe = [
+            'set-cookie', 'connection', 'keep-alive', 'proxy-authenticate',
+            'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'host'
+        ];
+        return in_array($n, $unsafe, true);
     }
 }

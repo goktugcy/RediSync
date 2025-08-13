@@ -47,7 +47,13 @@ final class HttpCache
             $etag    = $hit['etag'] ?? null;
             // Prefer Symfony Response if available; otherwise try Laravel helper; else bypass
             if (class_exists('Symfony\\Component\\HttpFoundation\\Response')) {
-                $resp = new \Symfony\Component\HttpFoundation\Response($body, $status, $headers);
+                    // sanitize headers on serve
+                    $safeHeaders = [];
+                    foreach ($headers as $hName => $hVal) {
+                        if ($this->isUnsafeHeader((string) $hName)) { continue; }
+                        $safeHeaders[$hName] = $hVal;
+                    }
+                    $resp = new \Symfony\Component\HttpFoundation\Response($body, $status, $safeHeaders);
             } elseif (function_exists('response')) {
                 $resp = \response($body, $status, $headers);
             } else {
@@ -102,9 +108,15 @@ final class HttpCache
             }
             // Store full payload similar to PSR-15 middleware (only for GET)
             if ($method === 'GET') {
+                    // sanitize headers before storing
+                    $stored = [];
+                    foreach ($response->headers->all() as $hName => $hVal) {
+                        if ($this->isUnsafeHeader((string) $hName)) { continue; }
+                        $stored[$hName] = $hVal;
+                    }
                 $payload = [
                     'status'  => $status,
-                    'headers' => $response->headers->all(),
+                        'headers' => $stored,
                     'body'    => $body,
                     'ts'      => time(),
                     'etag'    => $etag,
@@ -132,5 +144,15 @@ final class HttpCache
             }
         }
         return false;
+    }
+
+    private function isUnsafeHeader(string $name): bool
+    {
+        $n = strtolower($name);
+        $unsafe = [
+            'set-cookie', 'connection', 'keep-alive', 'proxy-authenticate',
+            'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'host'
+        ];
+        return in_array($n, $unsafe, true);
     }
 }
