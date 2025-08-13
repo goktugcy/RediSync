@@ -29,3 +29,13 @@ All notable changes to this project will be documented in this file.
 [0.1.9]: https://github.com/goktugcy/RediSync/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/goktugcy/RediSync/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/goktugcy/RediSync/compare/v0.1.6...v0.1.7
+
+## [1.0.0] - 2025-08-13
+
+### Stable
+
+- API contracts finalized: `set($key, null)` evicts key; exceptions bubble from underlying libs.
+- HTTP cache: ETag/If-None-Match + 304, Cache-Control no-store/private, vary safety, header sanitization.
+- Laravel middleware parity with PSR-15, Facades, CLI, and docs stabilized.
+
+[1.0.0]: https://github.com/goktugcy/RediSync/compare/v0.1.9...v1.0.0
