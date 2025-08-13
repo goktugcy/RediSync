@@ -39,3 +39,11 @@ All notable changes to this project will be documented in this file.
 - Laravel middleware parity with PSR-15, Facades, CLI, and docs stabilized.
 
 [1.0.0]: https://github.com/goktugcy/RediSync/compare/v0.1.9...v1.0.0
+
+## [1.0.1] - 2025-08-13
+
+### Added
+
+- PSR-3 logging: optional LoggerInterface wiring across CacheManager, PSR-15 and Laravel HttpCache, and DatabaseManager. Emits concise events for hit/miss/store, bypass reasons, conditional 304, DB operations. Laravel ServiceProvider auto-injects the framework logger.
+
+[1.0.1]: https://github.com/goktugcy/RediSync/compare/v1.0.0...v1.0.1

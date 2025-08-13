@@ -14,20 +14,26 @@ final class RediSyncServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(CacheManager::class, function () {
-            $r = config('database.redis.default', []);
-            return CacheManager::fromConfig([
+            $config = $this->app->make('config');
+            $r      = $config->get('database.redis.default', []);
+            $cache  = CacheManager::fromConfig([
                 'host'     => $r['host'] ?? '127.0.0.1',
                 'port'     => (int) ($r['port'] ?? 6379),
                 'password' => $r['password'] ?? null,
                 'database' => (int) ($r['database'] ?? 0),
                 'prefix'   => 'redisync:',
             ]);
+            if (interface_exists(\Psr\Log\LoggerInterface::class)) {
+                try { $cache->setLogger($this->app->make(\Psr\Log\LoggerInterface::class));} catch (\Throwable $e) {}
+            }
+            return $cache;
         });
 
         if (class_exists(DatabaseManager::class) && interface_exists(\Doctrine\DBAL\Connection::class)) {
             $this->app->singleton(DatabaseManager::class, function () {
-                $driver = config('database.default');
-                $cfg    = config("database.connections.$driver", []);
+                $config = $this->app->make('config');
+                $driver = $config->get('database.default');
+                $cfg    = $config->get("database.connections.$driver", []);
 
                 if (($cfg['driver'] ?? '') === 'mysql') {
                     $dsn = sprintf(
@@ -50,7 +56,11 @@ final class RediSyncServiceProvider extends ServiceProvider
                     );
                 }
 
-                return DatabaseManager::fromDsn($dsn);
+                $db = DatabaseManager::fromDsn($dsn);
+                if (interface_exists(\Psr\Log\LoggerInterface::class)) {
+                    try { $db->setLogger($this->app->make(\Psr\Log\LoggerInterface::class));} catch (\Throwable $e) {}
+                }
+                return $db;
             });
         }
     }

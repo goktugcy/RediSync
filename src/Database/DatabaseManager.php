@@ -7,6 +7,8 @@ namespace RediSync\Database;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Exception as DBALException;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use RediSync\Cache\CacheManager;
 
 class DatabaseManager
@@ -14,10 +16,12 @@ class DatabaseManager
     private Connection $connection;
     /** @var callable[] */
     private array $invalidationCallbacks = [];
+    private LoggerInterface $logger;
 
     private function __construct(Connection $connection)
     {
         $this->connection = $connection;
+        $this->logger     = new NullLogger();
     }
 
     public static function fromDsn(string $dsn): self
@@ -41,8 +45,10 @@ class DatabaseManager
             $stmt   = $this->connection->prepare($sql);
             $result = $stmt->executeQuery($params);
             $row    = $result->fetchAssociative();
+            $this->logger->debug('db.fetch_one', ['sql' => $sql]);
             return $row ?: null;
         } catch (DBALException $e) {
+            $this->logger->error('db.error', ['sql' => $sql, 'exception' => $e::class, 'message' => $e->getMessage()]);
             throw $e; // bubble up for now
         }
     }
@@ -52,8 +58,11 @@ class DatabaseManager
         try {
             $stmt   = $this->connection->prepare($sql);
             $result = $stmt->executeQuery($params);
-            return $result->fetchAllAssociative();
+            $rows   = $result->fetchAllAssociative();
+            $this->logger->debug('db.fetch_all', ['sql' => $sql, 'rows' => count($rows)]);
+            return $rows;
         } catch (DBALException $e) {
+            $this->logger->error('db.error', ['sql' => $sql, 'exception' => $e::class, 'message' => $e->getMessage()]);
             throw $e; // bubble up for now
         }
     }
@@ -63,8 +72,10 @@ class DatabaseManager
         try {
             $affected = $this->connection->executeStatement($sql, $params);
             $this->maybeInvalidate($sql, $params);
+            $this->logger->info('db.execute', ['sql' => $sql, 'affected' => $affected]);
             return $affected;
         } catch (DBALException $e) {
+            $this->logger->error('db.error', ['sql' => $sql, 'exception' => $e::class, 'message' => $e->getMessage()]);
             throw $e; // bubble up for now
         }
     }
@@ -115,6 +126,7 @@ class DatabaseManager
 
                 if ($affected > 0 && ! empty($entries)) {
                     $this->applyCacheEntries($cache, $entries, $defaultTtl);
+                    $this->logger->info('db.write_through.cache_updated', ['entries' => count($entries)]);
                 }
 
                 return (int) $affected;
@@ -170,8 +182,14 @@ class DatabaseManager
                     $fn($sql, $params);
                 } catch (\Throwable $e) {
                     // swallow to not break DB flow
+                    $this->logger->warning('db.invalidate_callback_error', ['exception' => $e::class, 'message' => $e->getMessage()]);
                 }
             }
         }
+    }
+
+    public function setLogger(LoggerInterface $logger): void
+    {
+        $this->logger = $logger;
     }
 }

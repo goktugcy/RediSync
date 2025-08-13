@@ -5,6 +5,8 @@ declare (strict_types = 1);
 namespace RediSync\Bridge\Laravel\Middleware;
 
 use Closure;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use RediSync\Cache\CacheManager;
 use RediSync\Utils\KeyGenerator;
 
@@ -12,27 +14,34 @@ final class HttpCache
 {
     public function __construct(
         private CacheManager $cache,
-        private int $defaultTtl = 300
-    ) {}
+        private int $defaultTtl = 300,
+        private ?LoggerInterface $logger = null
+    ) {
+        $this->logger = $this->logger ?? new NullLogger();
+    }
 
     public function handle($request, Closure $next)
     {
         $method = strtoupper($request->getMethod());
         if (! in_array($method, ['GET', 'HEAD'], true)) {
+            $this->logger->debug('laravel.httpcache.bypass', ['reason' => 'method', 'method' => $method]);
             return $next($request);
         }
 
         if ($request->headers->get('X-Bypass-Cache') === '1') {
+            $this->logger->debug('laravel.httpcache.bypass', ['reason' => 'header']);
             return $next($request);
         }
 
         // Respect request Cache-Control: no-store
         $reqCc = (string) $request->headers->get('Cache-Control', '');
         if ($reqCc !== '' && str_contains(strtolower($reqCc), 'no-store')) {
+            $this->logger->debug('laravel.httpcache.bypass', ['reason' => 'request_no_store']);
             return $next($request);
         }
         // Vary safety: Authorization/Cookie present -> bypass shared cache
         if ($request->headers->has('Authorization') || $request->cookies->count() > 0) {
+            $this->logger->debug('laravel.httpcache.bypass', ['reason' => 'vary_auth_cookie']);
             return $next($request);
         }
 
@@ -40,6 +49,7 @@ final class HttpCache
         $key    = $keyGen->fromParts('GET', '/' . ltrim($request->path(), '/'), $request->query());
 
         if (($hit = $this->cache->get($key)) !== null) {
+            $this->logger->info('laravel.httpcache.hit', ['key' => $key]);
             // Rehydrate headers and body
             $status  = $hit['status'] ?? 200;
             $headers = $hit['headers'] ?? [];
@@ -69,6 +79,7 @@ final class HttpCache
             $ifNoneMatch = (string) $request->headers->get('If-None-Match', '');
             if ($ifNoneMatch !== '' && $etag) {
                 if ($this->ifNoneMatchSatisfied($ifNoneMatch, (string) $etag)) {
+                    $this->logger->info('laravel.httpcache.conditional_304', ['key' => $key]);
                     $resp->setStatusCode(304);
                     $resp->setContent('');
                     if ($etag) {
@@ -84,6 +95,7 @@ final class HttpCache
         }
 
         $response = $next($request);
+        $this->logger->info('laravel.httpcache.miss', ['key' => $key]);
         $response->headers->set('X-RediSync-Cache', 'MISS', true);
 
         $status = $response->getStatusCode();
@@ -122,6 +134,7 @@ final class HttpCache
                     'etag'    => $etag,
                 ];
                 $this->cache->set($key, $payload, $this->defaultTtl);
+                $this->logger->info('laravel.httpcache.store', ['key' => $key, 'ttl' => $this->defaultTtl]);
             }
         }
 

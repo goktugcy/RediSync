@@ -5,16 +5,20 @@ declare (strict_types = 1);
 namespace RediSync\Cache;
 
 use Predis\Client as PredisClient;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 class CacheManager
 {
     private PredisClient $client;
     private string $prefix;
+    private LoggerInterface $logger;
 
     public function __construct(PredisClient $client, string $prefix = 'redisync:')
     {
         $this->client = $client;
         $this->prefix = rtrim($prefix, ':') . ':';
+        $this->logger = new NullLogger();
     }
 
     public static function fromConfig(array $config): self
@@ -39,11 +43,15 @@ class CacheManager
 
     public function get(string $key): mixed
     {
-        $value = $this->client->get($this->key($key));
+        $redisKey = $this->key($key);
+        $value    = $this->client->get($redisKey);
         if ($value === null) {
+            $this->logger->info('cache.miss', ['key' => $key]);
             return null;
         }
-        return json_decode((string) $value, true);
+        $decoded = json_decode((string) $value, true);
+        $this->logger->info('cache.hit', ['key' => $key]);
+        return $decoded;
     }
 
     /**
@@ -55,6 +63,7 @@ class CacheManager
     public function set(string $key, mixed $value, ?int $ttl = null): void
     {
         if ($value === null) {
+            $this->logger->info('cache.evict', ['key' => $key]);
             $this->delete($key);
             return;
         }
@@ -62,8 +71,10 @@ class CacheManager
         $redisKey = $this->key($key);
         if ($ttl !== null && $ttl > 0) {
             $this->client->setex($redisKey, $ttl, $payload);
+            $this->logger->info('cache.set', ['key' => $key, 'ttl' => $ttl]);
         } else {
             $this->client->set($redisKey, $payload);
+            $this->logger->info('cache.set', ['key' => $key, 'ttl' => null]);
         }
     }
 
@@ -90,6 +101,7 @@ class CacheManager
     public function delete(string $key): void
     {
         $this->client->del([$this->key($key)]);
+        $this->logger->info('cache.delete', ['key' => $key]);
     }
 
     public function clearByPattern(string $pattern = '*'): int
@@ -104,6 +116,7 @@ class CacheManager
                 $count += count($keys);
             }
         } while ($cursor != 0);
+        $this->logger->info('cache.clear_by_pattern', ['pattern' => $pattern, 'deleted' => $count]);
         return $count;
     }
 
@@ -137,5 +150,10 @@ class CacheManager
             'size'   => $size,
             'exists' => $this->client->exists($full) === 1,
         ];
+    }
+
+    public function setLogger(LoggerInterface $logger): void
+    {
+        $this->logger = $logger;
     }
 }

@@ -27,6 +27,7 @@ Quick nav: [Install](#install) · [Middleware](#middleware-usage) · [Facade](#f
 - Doctrine DBAL-based DatabaseManager with invalidation hooks.
 - Write-through DB helper: update cache immediately after successful DB writes.
 - remember() helper: compute-or-cache convenience API (vanilla and Laravel facades).
+- PSR-3 logging hooks: cache hit/miss/store, bypass reasons, DB write-through.
 
 ## 🔧 Install
 
@@ -135,6 +136,27 @@ RediSync::set('users:1', null); // equivalent to delete
 // $cache->clearByPattern('users:*');
 ```
 
+## 📜 Logging (PSR-3)
+
+RediSync logs the following events with any PSR-3–compatible logger: `cache.hit`, `cache.miss`, `cache.set`, `cache.delete`, `cache.clear_by_pattern`, `httpcache.hit|miss|store|conditional_304|not_cacheable|bypass`, `db.execute`, `db.fetch_*`, `db.write_through.cache_updated`.
+Vanilla PHP (Monolog):
+
+```php
+use Monolog\Logger;
+use Monolog\Handler\StreamHandler;
+use RediSync\Cache\CacheManager;
+use RediSync\Facades\RediSync;
+
+$logger = new Logger('app');
+$logger->pushHandler(new StreamHandler('php://stdout'));
+
+$cache = CacheManager::fromConfig(['host' => '127.0.0.1', 'port' => 6379]);
+$cache->setLogger($logger);
+RediSync::setInstance($cache);
+RediSync::setLogger($logger); // optional facade shortcut
+```
+
+Laravel: LoggerInterface is automatically injected from the container. The ServiceProvider forwards the framework logger to CacheManager and DatabaseManager; no extra setup required.
 ## Write-through DB to Cache
 
 Update cache immediately after a successful DB write (inside a transaction):

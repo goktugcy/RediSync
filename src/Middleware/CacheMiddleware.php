@@ -11,6 +11,8 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use RediSync\Cache\CacheManager;
 use RediSync\Utils\KeyGenerator;
 
@@ -25,12 +27,14 @@ class CacheMiddleware implements MiddlewareInterface
         private array $statusWhitelist = [200],
         private array $allowedContentTypes = [],
         private array $ttlMap = [],
+        private ?LoggerInterface $logger = null,
     ) {
         if ($this->responseFactory === null || $this->streamFactory === null) {
             $psr17                 = new Psr17Factory();
             $this->responseFactory = $this->responseFactory ?? $psr17;
             $this->streamFactory   = $this->streamFactory ?? $psr17;
         }
+        $this->logger = $this->logger ?? new NullLogger();
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -40,19 +44,23 @@ class CacheMiddleware implements MiddlewareInterface
         $isGet  = $method === 'GET';
         // Only cache idempotent GET/HEAD requests by default
         if (! $isGet && ! $isHead) {
+            $this->logger->debug('httpcache.bypass', ['reason' => 'method', 'method' => $method]);
             return $handler->handle($request);
         }
         // Allow bypass with header X-Bypass-Cache: 1
         if ($request->getHeaderLine('X-Bypass-Cache') === '1') {
+            $this->logger->debug('httpcache.bypass', ['reason' => 'header']);
             return $handler->handle($request);
         }
         // Respect request Cache-Control: no-store (do not use or write cache)
         $reqCc = $request->getHeaderLine('Cache-Control');
         if ($reqCc !== '' && stripos($reqCc, 'no-store') !== false) {
+            $this->logger->debug('httpcache.bypass', ['reason' => 'request_no_store']);
             return $handler->handle($request);
         }
         // Vary safety: if Authorization or Cookie is present, bypass shared cache to avoid user-specific leakage
         if ($request->hasHeader('Authorization') || $request->hasHeader('Cookie')) {
+            $this->logger->debug('httpcache.bypass', ['reason' => 'vary_auth_cookie']);
             return $handler->handle($request);
         }
 
@@ -61,6 +69,7 @@ class CacheMiddleware implements MiddlewareInterface
         $key           = $this->keys->fromRequest($requestForKey);
         $cached        = $this->cache->get($key);
         if ($cached !== null && isset($cached['status'], $cached['headers'], $cached['body'])) {
+            $this->logger->info('httpcache.hit', ['key' => $key]);
             $response = $this->responseFactory->createResponse($cached['status']);
             foreach ($cached['headers'] as $name => $values) {
                 if ($this->isUnsafeHeader($name)) {continue;}
@@ -77,6 +86,7 @@ class CacheMiddleware implements MiddlewareInterface
             $etag        = $cached['etag'] ?? null;
             if ($ifNoneMatch !== '' && $etag) {
                 if ($this->ifNoneMatchSatisfied($ifNoneMatch, (string) $etag)) {
+                    $this->logger->info('httpcache.conditional_304', ['key' => $key]);
                     // 304 Not Modified: empty body, include ETag
                     $response = $response->withStatus(304)->withHeader('ETag', (string) $etag);
                     $empty    = $this->streamFactory->createStream('');
@@ -93,12 +103,14 @@ class CacheMiddleware implements MiddlewareInterface
         }
 
         $response = $handler->handle($request);
+        $this->logger->info('httpcache.miss', ['key' => $key]);
         $response = $response->withHeader('X-RediSync-Cache', 'MISS');
 
         $body    = (string) $response->getBody();
         $headers = $response->getHeaders();
         $status  = $response->getStatusCode();
         if (! $this->isCacheableResponse($response)) {
+            $this->logger->debug('httpcache.not_cacheable', ['key' => $key, 'status' => $status]);
             return $response;
         }
         // Respect response Cache-Control: no-store/private (do not store in shared cache)
@@ -106,6 +118,7 @@ class CacheMiddleware implements MiddlewareInterface
         if ($resCc !== '') {
             $ccLower = strtolower($resCc);
             if (str_contains($ccLower, 'no-store') || str_contains($ccLower, 'private')) {
+                $this->logger->debug('httpcache.bypass', ['reason' => 'response_no_store_private']);
                 return $response;
             }
         }
@@ -129,6 +142,7 @@ class CacheMiddleware implements MiddlewareInterface
                 'ts'      => time(),
                 'etag'    => $etag,
             ], $ttl);
+            $this->logger->info('httpcache.store', ['key' => $key, 'ttl' => $ttl]);
         }
 
         return $response;

@@ -4,6 +4,7 @@ declare (strict_types = 1);
 
 namespace RediSync\Facades;
 
+use Psr\Log\LoggerInterface;
 use RediSync\Cache\CacheManager;
 
 /**
@@ -41,6 +42,11 @@ final class RediSync
     public static function delete(string $key): void
     {
         self::cache()->delete($key);
+    }
+
+    public static function setLogger(LoggerInterface $logger): void
+    {
+        self::cache()->setLogger($logger);
     }
 
     public static function remember(string $key, int $ttl, callable $callback): mixed
