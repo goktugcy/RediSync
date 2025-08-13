@@ -10,7 +10,7 @@ High-performance HTTP caching for PHP with Redis storage and optional DB-driven 
 
 > Zero-friction HTTP caching for PHP apps: PSR-15 middleware, Redis-backed, DB-aware invalidation.
 
-Quick nav: [Install](#install) · [Middleware](#middleware-usage) · [Facade](#facade-usage) · [Write-through](#write-through-db-to-cache) · [Laravel](#laravel-quickstart) · [CLI](#cli) · [Troubleshooting](#troubleshooting-installs-laravelcarbon-and-doctrine-dbal) · [Proof](#proof)
+Quick nav: [Install](#install) · [Configuration](#configuration) · [Middleware](#middleware-usage) · [Facade](#facade-usage) · [Logging](#logging-psr-3) · [Write-through](#write-through-db-to-cache) · [Laravel](#laravel-quickstart) · [CLI](#cli) · [Notes](#notes) · [API contracts](#api-contracts-and-errors) · [Troubleshooting](#troubleshooting-installs-laravelcarbon-and-doctrine-dbal) · [Proof](#proof)
 
 ## ✨ Features
 
@@ -138,7 +138,8 @@ RediSync::set('users:1', null); // equivalent to delete
 
 ## 📜 Logging (PSR-3)
 
-RediSync logs the following events with any PSR-3–compatible logger: `cache.hit`, `cache.miss`, `cache.set`, `cache.delete`, `cache.clear_by_pattern`, `httpcache.hit|miss|store|conditional_304|not_cacheable|bypass`, `db.execute`, `db.fetch_*`, `db.write_through.cache_updated`.
+RediSync logs key events with any PSR-3–compatible logger: `cache.hit`, `cache.miss`, `cache.set`, `cache.delete`, `cache.clear_by_pattern`, `httpcache.hit|miss|store|conditional_304|not_cacheable|bypass`, `db.execute`, `db.fetch_*`, `db.write_through.cache_updated`.
+
 Vanilla PHP (Monolog):
 
 ```php
@@ -157,6 +158,7 @@ RediSync::setLogger($logger); // optional facade shortcut
 ```
 
 Laravel: LoggerInterface is automatically injected from the container. The ServiceProvider forwards the framework logger to CacheManager and DatabaseManager; no extra setup required.
+
 ## Write-through DB to Cache
 
 Update cache immediately after a successful DB write (inside a transaction):
@@ -313,8 +315,8 @@ printf "a\nb\n" | vendor/bin/redisync warmup 30
 
 ### API contracts and errors
 
-- Cache null semantics: `set($key, null)` evicts (deletes) the key to avoid ambiguity with `get()` returning null.
-- Exceptions: Redis/DB hataları şu an alttaki kütüphanelerden ham olarak yükseltilir. 1.0.0’da sarmalayıcı exception katmanı eklenmez; uygulamanızda try/catch ile ele alabilirsiniz.
+- Cache null semantics: `set($key, null)` evicts the key to avoid ambiguity with `get()` returning null.
+- Exceptions: Redis/DB errors currently bubble up from underlying libraries. There’s no wrapper exception layer in 1.x; handle with try/catch in your app as needed.
 
 ## Troubleshooting installs (Laravel/Carbon and Doctrine DBAL)
 
