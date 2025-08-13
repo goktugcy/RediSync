@@ -128,6 +128,11 @@ $user = RediSync::remember('users:1', 300, function () {
   // expensive work or DB fetch
   return ['id' => 1, 'name' => 'Ada'];
 });
+
+// Evict: set with null deletes the key (by design)
+RediSync::set('users:1', null); // equivalent to delete
+// Bulk invalidation example
+// $cache->clearByPattern('users:*');
 ```
 
 ## Write-through DB to Cache
@@ -283,6 +288,11 @@ printf "a\nb\n" | vendor/bin/redisync warmup 30
 - Middleware caches only GET/HEAD requests by default.
 - Use status whitelist and Content-Type filters for safe caching.
 - TTL map allows per-path TTL control.
+
+### API contracts and errors
+
+- Cache null semantics: `set($key, null)` evicts (deletes) the key to avoid ambiguity with `get()` returning null.
+- Exceptions: Redis/DB hataları şu an alttaki kütüphanelerden ham olarak yükseltilir. 1.0.0’da sarmalayıcı exception katmanı eklenmez; uygulamanızda try/catch ile ele alabilirsiniz.
 
 ## Troubleshooting installs (Laravel/Carbon and Doctrine DBAL)
 

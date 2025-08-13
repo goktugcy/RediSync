@@ -16,4 +16,15 @@ final class CacheManagerTest extends TestCase
         $cache->delete($key);
         $this->assertNull($cache->get($key));
     }
+
+    public function testSetNullEvictsKey(): void
+    {
+        $cache = CacheManager::fromConfig(['host' => '127.0.0.1', 'port' => 6379, 'database' => 15, 'prefix' => 'test:redisync:']);
+        $key   = 'unit:null-evict';
+        $cache->set($key, ['x' => 1], 60);
+        $this->assertSame(['x' => 1], $cache->get($key));
+        // Setting null should evict
+        $cache->set($key, null, 60);
+        $this->assertNull($cache->get($key));
+    }
 }

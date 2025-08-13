@@ -46,8 +46,18 @@ class CacheManager
         return json_decode((string) $value, true);
     }
 
+    /**
+     * Set a value in cache.
+     *
+     * Note: Passing null evicts the key (delete). This avoids ambiguity, since get() returns null
+     * both for missing keys and JSON null values.
+     */
     public function set(string $key, mixed $value, ?int $ttl = null): void
     {
+        if ($value === null) {
+            $this->delete($key);
+            return;
+        }
         $payload  = json_encode($value);
         $redisKey = $this->key($key);
         if ($ttl !== null && $ttl > 0) {
